@@ -1,0 +1,453 @@
+name: Deploy ActivityTracker
+
+# Workflow description and purpose
+# This GitHub Actions workflow automates the deployment of the ActivityTracker
+# application to AWS using SAM (Serverless Application Model). It includes
+# testing, building, and deployment stages with proper error handling.
+
+on:
+  # Trigger on pushes to main branch for production deployment
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'infrastructure/**' 
+      - 'dashboard/**'
+      - 'pyproject.toml'
+      - '.github/workflows/deploy.yml'
+      
+  # Trigger on pull requests for development deployment and testing
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'infrastructure/**'
+      - 'dashboard/**'
+      - 'pyproject.toml'
+      - '.github/workflows/deploy.yml'
+      
+  # Allow manual triggering with environment selection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      skip_tests:
+        description: 'Skip test execution'
+        required: false
+        default: false
+        type: boolean
+
+# Global environment variables
+env:
+  PYTHON_VERSION: '3.11'
+  SAM_CLI_VERSION: '1.100.0'
+  NODE_VERSION: '18'
+
+# Define job execution permissions
+permissions:
+  contents: read
+  id-token: write  # Required for OIDC token generation
+  deployments: write
+
+jobs:
+  # Job 1: Run tests and code quality checks
+  test:
+    name: 🧪 Test & Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    # Skip tests if explicitly requested via workflow_dispatch
+    if: ${{ !inputs.skip_tests }}
+    
+    steps:
+      # Checkout repository with full history for better diffs
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      # Set up Python environment with caching
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      # Install UV package manager for fast dependency management
+      - name: 📦 Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      # Install project dependencies
+      - name: 📚 Install dependencies
+        run: |
+          uv sync --dev
+          source .venv/bin/activate
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+          echo "$VIRTUAL_ENV/bin" >> $GITHUB_PATH
+      
+      # Run code formatting checks
+      - name: 🎨 Check code formatting
+        run: |
+          echo "Checking code formatting with Black..."
+          black --check --diff src/ tests/ || {
+            echo "❌ Code formatting issues found. Run 'black src/ tests/' to fix."
+            exit 1
+          }
+      
+      # Run linting checks
+      - name: 🔍 Run linting
+        run: |
+          echo "Running Ruff linter..."
+          ruff check src/ tests/ || {
+            echo "❌ Linting issues found. Run 'ruff check --fix src/ tests/' to fix."
+            exit 1
+          }
+      
+      # Run type checking
+      - name: 🔬 Type checking
+        run: |
+          echo "Running MyPy type checking..."
+          mypy src/ || {
+            echo "❌ Type checking failed. Please fix type errors."
+            exit 1
+          }
+      
+      # Run unit tests with coverage
+      - name: 🧪 Run tests
+        run: |
+          echo "Running pytest with coverage..."
+          pytest tests/ --cov=src --cov-report=xml --cov-report=term --cov-fail-under=80 || {
+            echo "❌ Tests failed or coverage below 80%"
+            exit 1
+          }
+      
+      # Upload test coverage to GitHub
+      - name: 📊 Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: activitytracker-coverage
+          fail_ci_if_error: false
+
+  # Job 2: Build and validate SAM application
+  build:
+    name: 🏗️ Build Application
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [test]
+    # Run even if tests are skipped, but only if tests passed or were skipped
+    if: ${{ always() && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    
+    outputs:
+      # Export build artifacts location for deployment job
+      build-dir: ${{ steps.build.outputs.build-dir }}
+      
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      # Install AWS SAM CLI for building serverless applications
+      - name: 🔧 Install AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          version: ${{ env.SAM_CLI_VERSION }}
+      
+      # Install UV and project dependencies
+      - name: 📦 Install dependencies
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          uv sync --dev
+      
+      # Build SAM application
+      - name: 🏗️ Build SAM application
+        id: build
+        run: |
+          echo "Building SAM application..."
+          cd infrastructure
+          sam build --use-container --parallel
+          echo "build-dir=$(pwd)/.aws-sam/build" >> $GITHUB_OUTPUT
+          echo "✅ SAM application built successfully"
+      
+      # Validate SAM template
+      - name: ✅ Validate SAM template
+        run: |
+          echo "Validating SAM template..."
+          cd infrastructure
+          sam validate || {
+            echo "❌ SAM template validation failed"
+            exit 1
+          }
+          echo "✅ SAM template is valid"
+      
+      # Cache build artifacts for deployment job
+      - name: 💾 Cache build artifacts
+        uses: actions/cache@v3
+        with:
+          path: infrastructure/.aws-sam/build
+          key: sam-build-${{ github.sha }}
+          restore-keys: |
+            sam-build-
+
+  # Job 3: Deploy to AWS
+  deploy:
+    name: 🚀 Deploy to AWS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [test, build]
+    # Only run if tests and build succeeded (or tests were skipped)
+    if: ${{ always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && needs.build.result == 'success' }}
+    
+    # Use different environments based on trigger
+    environment: 
+      name: ${{ github.event_name == 'push' && 'production' || (inputs.environment || 'development') }}
+      url: ${{ steps.deploy.outputs.dashboard-url }}
+      
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: 🔧 Install AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          version: ${{ env.SAM_CLI_VERSION }}
+      
+      # Configure AWS credentials using OIDC (more secure than access keys)
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: ActivityTracker-GitHubActions
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          role-duration-seconds: 3600
+      
+      # Determine deployment environment
+      - name: 🎯 Determine deployment environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+          
+          ENV=$(cat $GITHUB_OUTPUT | grep environment | cut -d'=' -f2)
+          echo "🎯 Deploying to environment: $ENV"
+      
+      # Restore build cache
+      - name: 💾 Restore build cache
+        uses: actions/cache@v3
+        with:
+          path: infrastructure/.aws-sam/build
+          key: sam-build-${{ github.sha }}
+      
+      # Deploy SAM application
+      - name: 🚀 Deploy SAM application
+        id: deploy
+        run: |
+          cd infrastructure
+          
+          ENV="${{ steps.env.outputs.environment }}"
+          echo "🚀 Starting deployment to $ENV environment..."
+          
+          # Deploy with environment-specific configuration
+          sam deploy \
+            --config-env $ENV \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --resolve-s3 \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameter-overrides Environment=$ENV
+          
+          echo "✅ SAM deployment completed successfully"
+          
+          # Get stack outputs
+          STACK_NAME="ActivityTracker-$ENV"
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`APIGatewayURL`].OutputValue' \
+            --output text)
+          
+          DASHBOARD_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`DashboardURL`].OutputValue' \
+            --output text)
+          
+          echo "api-url=$API_URL" >> $GITHUB_OUTPUT
+          echo "dashboard-url=$DASHBOARD_URL" >> $GITHUB_OUTPUT
+          
+          echo "🌐 API URL: $API_URL"
+          echo "📊 Dashboard URL: $DASHBOARD_URL"
+      
+      # Update dashboard configuration with API URL
+      - name: 🔧 Update dashboard configuration
+        run: |
+          API_URL="${{ steps.deploy.outputs.api-url }}"
+          
+          # Update the dashboard HTML with the correct API URL
+          sed -i "s|https://YOUR_API_GATEWAY_URL/dev|$API_URL|g" dashboard/index.html
+          
+          echo "✅ Dashboard configuration updated with API URL: $API_URL"
+      
+      # Deploy dashboard to S3
+      - name: 📊 Deploy dashboard to S3
+        run: |
+          ENV="${{ steps.env.outputs.environment }}"
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name "ActivityTracker-$ENV" \
+            --query 'Stacks[0].Outputs[?OutputKey==`DashboardBucketName`].OutputValue' \
+            --output text)
+          
+          echo "📁 Uploading dashboard files to S3 bucket: $BUCKET_NAME"
+          
+          aws s3 sync dashboard/ s3://$BUCKET_NAME/ \
+            --delete \
+            --cache-control "max-age=31536000" \
+            --exclude "*.html" 
+            
+          # Upload HTML files without cache for immediate updates
+          aws s3 sync dashboard/ s3://$BUCKET_NAME/ \
+            --cache-control "no-cache" \
+            --include "*.html"
+          
+          echo "✅ Dashboard deployed successfully"
+      
+      # Invalidate CloudFront cache for immediate updates
+      - name: 🔄 Invalidate CloudFront cache
+        run: |
+          ENV="${{ steps.env.outputs.environment }}"
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name "ActivityTracker-$ENV" \
+            --query 'Stacks[0].Resources[?LogicalResourceId==`DashboardCloudFront`].PhysicalResourceId' \
+            --output text)
+          
+          if [[ "$DISTRIBUTION_ID" != "None" && "$DISTRIBUTION_ID" != "" ]]; then
+            echo "🔄 Invalidating CloudFront cache for distribution: $DISTRIBUTION_ID"
+            aws cloudfront create-invalidation \
+              --distribution-id $DISTRIBUTION_ID \
+              --paths "/*" \
+              --query 'Invalidation.Id' \
+              --output text
+            echo "✅ CloudFront cache invalidated"
+          else
+            echo "⚠️ CloudFront distribution ID not found, skipping cache invalidation"
+          fi
+      
+      # Run post-deployment health checks
+      - name: 🏥 Health check
+        timeout-minutes: 5
+        run: |
+          API_URL="${{ steps.deploy.outputs.api-url }}"
+          DASHBOARD_URL="${{ steps.deploy.outputs.dashboard-url }}"
+          
+          echo "🏥 Running post-deployment health checks..."
+          
+          # Check API health endpoint
+          echo "Checking API health..."
+          HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" || echo "000")
+          
+          if [[ "$HEALTH_RESPONSE" == "200" ]]; then
+            echo "✅ API health check passed"
+          else
+            echo "❌ API health check failed (HTTP $HEALTH_RESPONSE)"
+            exit 1
+          fi
+          
+          # Check dashboard availability
+          echo "Checking dashboard availability..."
+          DASHBOARD_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$DASHBOARD_URL" || echo "000")
+          
+          if [[ "$DASHBOARD_RESPONSE" == "200" ]]; then
+            echo "✅ Dashboard availability check passed"
+          else
+            echo "❌ Dashboard availability check failed (HTTP $DASHBOARD_RESPONSE)"
+            exit 1
+          fi
+          
+          echo "🎉 All health checks passed!"
+      
+      # Create deployment summary
+      - name: 📋 Create deployment summary
+        run: |
+          ENV="${{ steps.env.outputs.environment }}"
+          API_URL="${{ steps.deploy.outputs.api-url }}"
+          DASHBOARD_URL="${{ steps.deploy.outputs.dashboard-url }}"
+          
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🚀 Deployment Successful!
+          
+          **Environment:** $ENV  
+          **Commit:** \`${{ github.sha }}\`  
+          **Triggered by:** ${{ github.event_name }}  
+          
+          ### 🌐 URLs
+          - **Dashboard:** [$DASHBOARD_URL]($DASHBOARD_URL)
+          - **API:** [$API_URL]($API_URL)
+          - **Health Check:** [$API_URL/health]($API_URL/health)
+          
+          ### 📱 SMS Setup
+          To start tracking activities, configure your AWS Pinpoint project with the deployed Lambda function.
+          
+          ### 🎯 Next Steps
+          1. Set up SMS phone number in AWS Pinpoint
+          2. Configure inbound SMS routing to the Lambda function
+          3. Send test SMS: "WORK team meeting for 60 minutes"
+          
+          ### 🔗 Quick Links
+          - [AWS Console - Lambda Functions](https://console.aws.amazon.com/lambda/)
+          - [AWS Console - DynamoDB Tables](https://console.aws.amazon.com/dynamodb/)
+          - [AWS Console - Pinpoint Projects](https://console.aws.amazon.com/pinpoint/)
+          
+          ---
+          🤖 Generated with [Claude Code](https://claude.ai/code)
+          EOF
+
+  # Job 4: Notification (runs regardless of success/failure)
+  notify:
+    name: 📢 Notify
+    runs-on: ubuntu-latest
+    needs: [test, build, deploy]
+    if: always()
+    
+    steps:
+      # Send notification on failure (customize as needed)
+      - name: 📢 Notify on failure
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          echo "❌ Deployment pipeline failed!"
+          echo "- Tests: ${{ needs.test.result }}"
+          echo "- Build: ${{ needs.build.result }}"
+          echo "- Deploy: ${{ needs.deploy.result }}"
+          
+          # Here you could add Slack, email, or other notification integrations
+          # Example: curl -X POST -H 'Content-type: application/json' --data '{"text":"ActivityTracker deployment failed"}' $SLACK_WEBHOOK_URL
+      
+      - name: ✅ Notify on success
+        if: ${{ needs.deploy.result == 'success' }}
+        run: |
+          echo "🎉 Deployment pipeline succeeded!"
+          echo "Environment: ${{ github.event_name == 'push' && 'production' || 'development' }}"
+          
+          # Add success notification integrations here

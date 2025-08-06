@@ -1,0 +1,64 @@
+# SAM configuration file for ActivityTracker application deployment
+# This file contains environment-specific parameters and deployment settings
+
+version = 0.1
+
+# Default deployment parameters
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "ActivityTracker-dev"
+s3_bucket = ""  # Will be auto-created by SAM
+s3_prefix = "ActivityTracker"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = [
+    "Environment=dev",
+    "PinpointProjectName=ActivityTracker"
+]
+confirm_changeset = true
+resolve_s3 = true
+resolve_image_repos = true
+tags = [
+    "Project=ActivityTracker",
+    "Environment=dev",
+    "ManagedBy=SAM"
+]
+
+# Development environment configuration
+[dev]
+[dev.deploy]
+[dev.deploy.parameters]
+stack_name = "ActivityTracker-dev"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = [
+    "Environment=dev",
+    "PinpointProjectName=ActivityTracker-Dev"
+]
+confirm_changeset = true
+resolve_s3 = true
+tags = [
+    "Project=ActivityTracker",
+    "Environment=dev",
+    "ManagedBy=SAM"
+]
+
+# Production environment configuration  
+[prod]
+[prod.deploy]
+[prod.deploy.parameters]
+stack_name = "ActivityTracker-prod"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = [
+    "Environment=prod",
+    "PinpointProjectName=ActivityTracker-Prod"
+]
+confirm_changeset = false  # Auto-deploy in production
+resolve_s3 = true
+tags = [
+    "Project=ActivityTracker",
+    "Environment=prod",
+    "ManagedBy=SAM"
+]

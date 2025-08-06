@@ -1,0 +1,178 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:CreateStack",
+                "cloudformation:UpdateStack",
+                "cloudformation:DeleteStack",
+                "cloudformation:DescribeStacks",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:DescribeStackEvents",
+                "cloudformation:GetTemplate",
+                "cloudformation:ValidateTemplate",
+                "cloudformation:ListStacks"
+            ],
+            "Resource": [
+                "arn:aws:cloudformation:*:*:stack/ActivityTracker-*/*",
+                "arn:aws:cloudformation:*:*:stack/aws-sam-cli-managed-default*/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:CreateFunction",
+                "lambda:UpdateFunctionCode",
+                "lambda:UpdateFunctionConfiguration",
+                "lambda:DeleteFunction",
+                "lambda:GetFunction",
+                "lambda:ListFunctions",
+                "lambda:TagResource",
+                "lambda:UntagResource",
+                "lambda:AddPermission",
+                "lambda:RemovePermission",
+                "lambda:GetPolicy",
+                "lambda:PutFunctionEventInvokeConfig",
+                "lambda:DeleteFunctionEventInvokeConfig"
+            ],
+            "Resource": [
+                "arn:aws:lambda:*:*:function:ActivityTracker-*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:CreateTable",
+                "dynamodb:UpdateTable",
+                "dynamodb:DeleteTable",
+                "dynamodb:DescribeTable",
+                "dynamodb:ListTables",
+                "dynamodb:TagResource",
+                "dynamodb:UntagResource",
+                "dynamodb:PutItem",
+                "dynamodb:GetItem",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:*:*:table/ActivityTracker-*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "apigateway:GET",
+                "apigateway:POST",
+                "apigateway:PUT",
+                "apigateway:DELETE",
+                "apigateway:PATCH"
+            ],
+            "Resource": [
+                "arn:aws:apigateway:*::/restapis*",
+                "arn:aws:apigateway:*::/apis*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:CreateBucket",
+                "s3:DeleteBucket",
+                "s3:GetBucketLocation",
+                "s3:GetBucketPolicy",
+                "s3:PutBucketPolicy",
+                "s3:DeleteBucketPolicy",
+                "s3:GetBucketVersioning",
+                "s3:PutBucketVersioning",
+                "s3:GetBucketEncryption",
+                "s3:PutBucketEncryption",
+                "s3:GetBucketPublicAccessBlock",
+                "s3:PutBucketPublicAccessBlock",
+                "s3:GetBucketWebsite",
+                "s3:PutBucketWebsite",
+                "s3:DeleteBucketWebsite",
+                "s3:ListBucket",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:GetObjectVersion",
+                "s3:DeleteObjectVersion"
+            ],
+            "Resource": [
+                "arn:aws:s3:::activitytracker-*",
+                "arn:aws:s3:::activitytracker-*/*",
+                "arn:aws:s3:::aws-sam-cli-managed-default-*",
+                "arn:aws:s3:::aws-sam-cli-managed-default-*/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudfront:CreateDistribution",
+                "cloudfront:UpdateDistribution",
+                "cloudfront:DeleteDistribution",
+                "cloudfront:GetDistribution",
+                "cloudfront:GetDistributionConfig",
+                "cloudfront:ListDistributions",
+                "cloudfront:CreateOriginAccessIdentity",
+                "cloudfront:DeleteOriginAccessIdentity",
+                "cloudfront:GetOriginAccessIdentity",
+                "cloudfront:CreateInvalidation",
+                "cloudfront:GetInvalidation",
+                "cloudfront:ListInvalidations"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "pinpoint:CreateApp",
+                "pinpoint:DeleteApp",
+                "pinpoint:GetApp",
+                "pinpoint:UpdateApplicationSettings",
+                "pinpoint:GetSMSChannel",
+                "pinpoint:UpdateSMSChannel",
+                "pinpoint:SendMessages"
+            ],
+            "Resource": [
+                "arn:aws:pinpoint:*:*:apps/ActivityTracker*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateRole",
+                "iam:DeleteRole",
+                "iam:GetRole",
+                "iam:PassRole",
+                "iam:AttachRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:GetRolePolicy",
+                "iam:ListRolePolicies",
+                "iam:TagRole",
+                "iam:UntagRole"
+            ],
+            "Resource": [
+                "arn:aws:iam::*:role/ActivityTracker-*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:DeleteLogGroup",
+                "logs:DescribeLogGroups",
+                "logs:PutRetentionPolicy",
+                "logs:TagLogGroup",
+                "logs:UntagLogGroup"
+            ],
+            "Resource": [
+                "arn:aws:logs:*:*:log-group:/aws/lambda/ActivityTracker-*"
+            ]
+        }
+    ]
+}

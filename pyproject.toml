@@ -1,0 +1,39 @@
+[project]
+name = "activitytracker"
+version = "0.1.0"
+description = "Serverless activity tracker using AWS Pinpoint for SMS ingestion and Lambda for processing"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.34.0",
+    "pydantic>=2.5.0",
+    "python-dateutil>=2.8.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.12.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "moto>=4.2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = ["E", "W", "F", "I", "B", "C4", "ARG", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

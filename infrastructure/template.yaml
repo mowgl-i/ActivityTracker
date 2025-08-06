@@ -1,0 +1,391 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  ActivityTracker - Serverless activity tracking application using AWS Pinpoint
+  for SMS ingestion, Lambda for processing, and DynamoDB for storage.
+
+# Global configuration for all Lambda functions
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        ACTIVITIES_TABLE: !Ref ActivitiesTable
+        POWERTOOLS_SERVICE_NAME: activitytracker
+        POWERTOOLS_LOG_LEVEL: INFO
+
+Parameters:
+  # Environment parameter for multi-stage deployments
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+    
+  # Pinpoint configuration parameters  
+  PinpointProjectName:
+    Type: String
+    Default: ActivityTracker
+    Description: Name for the Pinpoint project
+    
+  # Phone number for SMS receiving (optional)
+  PhoneNumber:
+    Type: String
+    Default: ""
+    Description: Phone number for SMS receiving (leave empty to configure manually)
+
+Resources:
+  # DynamoDB table for storing activities
+  ActivitiesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "ActivityTracker-Activities-${Environment}"
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: phone_number
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: PhoneNumberTimestampIndex
+          KeySchema:
+            - AttributeName: phone_number
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          BillingMode: PAY_PER_REQUEST
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: ActivityTracker
+
+  # Lambda function for processing incoming SMS messages from Pinpoint
+  SMSProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "ActivityTracker-SMSProcessor-${Environment}"
+      CodeUri: ../src/
+      Handler: activitytracker.lambdas.sms_processor.lambda_handler
+      Description: Processes incoming SMS messages from Pinpoint and extracts activity data
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ActivitiesTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - pinpoint:SendMessages
+                - pinpoint:GetSMSChannel
+              Resource: !Sub "arn:aws:pinpoint:${AWS::Region}:${AWS::AccountId}:apps/*"
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream  
+                - logs:PutLogEvents
+              Resource: "*"
+      Tags:
+        Environment: !Ref Environment
+        Project: ActivityTracker
+
+  # Lambda function for API Gateway endpoints
+  APIFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "ActivityTracker-API-${Environment}"
+      CodeUri: ../src/
+      Handler: activitytracker.lambdas.api_handler.lambda_handler
+      Description: API Gateway handler for activity management and dashboard backend
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          CORS_ORIGIN: !If
+            - IsProduction
+            - !GetAtt DashboardCloudFront.DomainName
+            - "*"
+      Events:
+        # Health check endpoint
+        HealthCheck:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ActivityTrackerAPI
+            Path: /health
+            Method: GET
+            
+        # Get activities endpoint
+        GetActivities:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ActivityTrackerAPI
+            Path: /activities
+            Method: GET
+            
+        # Get activity by ID
+        GetActivity:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ActivityTrackerAPI
+            Path: /activities/{id}
+            Method: GET
+            
+        # Create activity endpoint  
+        CreateActivity:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ActivityTrackerAPI
+            Path: /activities
+            Method: POST
+            
+        # Get activity statistics
+        GetStats:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ActivityTrackerAPI
+            Path: /stats
+            Method: GET
+            
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ActivitiesTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+      Tags:
+        Environment: !Ref Environment
+        Project: ActivityTracker
+
+  # API Gateway for REST API
+  ActivityTrackerAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "ActivityTracker-API-${Environment}"
+      StageName: !Ref Environment
+      Description: REST API for ActivityTracker application
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: !If
+          - IsProduction
+          - !Sub "https://${DashboardCloudFront.DomainName}"
+          - "'*'"
+        MaxAge: "'600'"
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseTemplates:
+            application/json: '{"message": "Resource not found"}'
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !If
+                - IsProduction  
+                - !Sub "https://${DashboardCloudFront.DomainName}"
+                - "'*'"
+        DEFAULT_5XX:
+          ResponseTemplates:
+            application/json: '{"message": "Internal server error"}'
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !If
+                - IsProduction
+                - !Sub "https://${DashboardCloudFront.DomainName}" 
+                - "'*'"
+      Tags:
+        Environment: !Ref Environment
+        Project: ActivityTracker
+
+  # S3 bucket for dashboard static files
+  DashboardBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "activitytracker-dashboard-${Environment}-${AWS::AccountId}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: ActivityTracker
+
+  # CloudFront origin access identity
+  OriginAccessIdentity:
+    Type: AWS::CloudFront::OriginAccessIdentity
+    Properties:
+      OriginAccessIdentityConfig:
+        Comment: !Sub "OAI for ActivityTracker Dashboard ${Environment}"
+
+  # S3 bucket policy for CloudFront access
+  DashboardBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DashboardBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${OriginAccessIdentity}"
+            Action: s3:GetObject
+            Resource: !Sub "${DashboardBucket}/*"
+
+  # CloudFront distribution for dashboard
+  DashboardCloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub "ActivityTracker Dashboard Distribution ${Environment}"
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt DashboardBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${OriginAccessIdentity}"
+        Enabled: true
+        DefaultRootObject: index.html
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        Tags:
+          - Key: Environment
+            Value: !Ref Environment
+          - Key: Project
+            Value: ActivityTracker
+
+  # Pinpoint application for SMS handling  
+  PinpointApp:
+    Type: AWS::Pinpoint::App
+    Properties:
+      Name: !Sub "${PinpointProjectName}-${Environment}"
+      Tags:
+        Environment: !Ref Environment
+        Project: ActivityTracker
+
+  # IAM role for Pinpoint to invoke Lambda
+  PinpointLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "ActivityTracker-PinpointLambda-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: pinpoint.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt SMSProcessorFunction.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: ActivityTracker
+
+  # Lambda permission for Pinpoint to invoke SMS processor
+  PinpointLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SMSProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: pinpoint.amazonaws.com
+      SourceArn: !Sub "arn:aws:pinpoint:${AWS::Region}:${AWS::AccountId}:apps/${PinpointApp}/*"
+
+# Conditional resources based on environment
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+# Stack outputs
+Outputs:
+  # API Gateway URL
+  APIGatewayURL:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ActivityTrackerAPI}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-APIGatewayURL"
+
+  # CloudFront distribution URL  
+  DashboardURL:
+    Description: Dashboard CloudFront URL
+    Value: !Sub "https://${DashboardCloudFront.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-DashboardURL"
+
+  # DynamoDB table name
+  ActivitiesTableName:
+    Description: DynamoDB table name for activities
+    Value: !Ref ActivitiesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ActivitiesTable"
+
+  # Pinpoint application ID
+  PinpointApplicationId:
+    Description: Pinpoint application ID for SMS configuration
+    Value: !Ref PinpointApp
+    Export:
+      Name: !Sub "${AWS::StackName}-PinpointAppId"
+
+  # S3 bucket name for dashboard
+  DashboardBucketName:
+    Description: S3 bucket name for dashboard files
+    Value: !Ref DashboardBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-DashboardBucket"
+
+  # Lambda function names
+  SMSProcessorFunctionName:
+    Description: SMS processor Lambda function name
+    Value: !Ref SMSProcessorFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-SMSProcessorFunction"
+
+  APIFunctionName:
+    Description: API Lambda function name  
+    Value: !Ref APIFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-APIFunction"
