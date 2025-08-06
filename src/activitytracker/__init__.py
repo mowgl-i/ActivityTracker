@@ -23,7 +23,7 @@ from .services import ActivityService, PinpointService, DynamoDBService
 
 __all__ = [
     "Activity",
-    "ActivityType", 
+    "ActivityType",
     "SMSMessage",
     "ActivityService",
     "PinpointService",
