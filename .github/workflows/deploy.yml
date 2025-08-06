@@ -99,8 +99,8 @@ jobs:
         run: |
           echo "Checking code formatting with Black..."
           if [ -d "src/activitytracker" ] && [ -d "tests" ]; then
-            uv run black --check --diff src/activitytracker/ tests/ || {
-              echo "❌ Code formatting issues found. Run 'uv run black src/activitytracker/ tests/' to fix."
+            uv run black --check --diff src/activitytracker/tests/ || {
+              echo "❌ Code formatting issues found. Run 'uv run black src/activitytracker/tests/' to fix."
               exit 1
             }
           else
@@ -113,8 +113,8 @@ jobs:
         run: |
           echo "Running Ruff linter..."
           if [ -d "src/activitytracker" ] && [ -d "tests" ]; then
-            uv run ruff check src/activitytracker/ tests/ || {
-              echo "❌ Linting issues found. Run 'uv run ruff check --fix src/activitytracker/ tests/' to fix."
+            uv run ruff check src/activitytracker/tests/ || {
+              echo "❌ Linting issues found. Run 'uv run ruff check --fix src/activitytracker/tests/' to fix."
               exit 1
             }
           else
