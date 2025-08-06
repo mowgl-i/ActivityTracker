@@ -44,7 +44,7 @@ tags = [
     "ManagedBy=SAM"
 ]
 
-# Production environment configuration  
+# Production environment configuration
 [prod]
 [prod.deploy]
 [prod.deploy.parameters]

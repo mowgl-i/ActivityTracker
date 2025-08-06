@@ -18,16 +18,17 @@ Functions:
 
 import json
 import os
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any, Dict, Optional
 from urllib.parse import unquote_plus
 
-from ..services.activity_service import ActivityService
 from ..models.activity import Activity, ActivityType
-from ..models.sms import SMSMessage
+from ..services.activity_service import ActivityService
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(
+    event: Dict[str, Any], context: Any  # noqa: ARG001
+) -> Dict[str, Any]:
     """
     Main Lambda handler for API Gateway events.
 

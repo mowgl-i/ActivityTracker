@@ -14,14 +14,16 @@ Functions:
 
 import json
 import os
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 from ..models.sms import SMSMessage
 from ..services.activity_service import ActivityService
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(
+    event: Dict[str, Any], context: Any  # noqa: ARG001
+) -> Dict[str, Any]:
     """
     Main Lambda handler for processing SMS messages from AWS Pinpoint.
 
@@ -217,11 +219,7 @@ def _validate_event_structure(event: Dict[str, Any]) -> bool:
 
         # Check for required SMS fields
         required_fields = ["messageId", "originationNumber", "messageBody"]
-        for field in required_fields:
-            if field not in sms_data:
-                return False
-
-        return True
+        return all(field in sms_data for field in required_fields)
 
     except (KeyError, TypeError, AttributeError):
         return False
@@ -331,7 +329,7 @@ def _log_processing_error(
                 sms_data = records[0].get("pinpoint", {}).get("sms", {})
                 if "messageId" in sms_data:
                     log_data["messageId"] = sms_data["messageId"]
-        except:
+        except Exception:  # noqa: S110  # nosec B110
             pass
 
         print(json.dumps(log_data))

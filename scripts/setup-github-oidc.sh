@@ -37,38 +37,38 @@ ${NC}"
 # Function to check if required tools are installed
 check_prerequisites() {
     print_status "Checking prerequisites..."
-    
+
     if ! command -v aws &> /dev/null; then
         print_error "AWS CLI is not installed. Please install it first."
         exit 1
     fi
-    
+
     if ! command -v jq &> /dev/null; then
         print_error "jq is not installed. Please install it first."
         exit 1
     fi
-    
+
     # Check AWS CLI authentication
     if ! aws sts get-caller-identity &> /dev/null; then
         print_error "AWS CLI is not configured or authenticated."
         print_error "Please run 'aws configure' first."
         exit 1
     fi
-    
+
     print_status "Prerequisites check passed!"
 }
 
 # Function to get user inputs
 get_user_inputs() {
     print_status "Gathering configuration information..."
-    
+
     # Get AWS account ID
     AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
     print_status "AWS Account ID: $AWS_ACCOUNT_ID"
-    
+
     # Get current AWS region
     AWS_REGION=$(aws configure get region 2>/dev/null || echo "us-east-1")
-    
+
     # Get GitHub repository information
     echo ""
     read -p "Enter your GitHub username: " GITHUB_USERNAME
@@ -76,7 +76,7 @@ get_user_inputs() {
     GITHUB_REPO=${GITHUB_REPO:-ActivityTracker}
     read -p "Enter AWS region for deployment (default: $AWS_REGION): " INPUT_REGION
     AWS_REGION=${INPUT_REGION:-$AWS_REGION}
-    
+
     # Confirm inputs
     echo ""
     print_status "Configuration Summary:"
@@ -85,7 +85,7 @@ get_user_inputs() {
     echo "  GitHub Repository: $GITHUB_USERNAME/$GITHUB_REPO"
     echo ""
     read -p "Is this correct? (y/n): " CONFIRM
-    
+
     if [[ $CONFIRM != "y" && $CONFIRM != "Y" ]]; then
         print_error "Setup cancelled by user."
         exit 1
@@ -95,9 +95,9 @@ get_user_inputs() {
 # Function to check if OIDC provider exists
 check_oidc_provider() {
     print_status "Checking for GitHub OIDC provider..."
-    
+
     OIDC_PROVIDER_ARN="arn:aws:iam::$AWS_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
-    
+
     if aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$OIDC_PROVIDER_ARN" &> /dev/null; then
         print_status "GitHub OIDC provider already exists."
     else
@@ -108,7 +108,7 @@ check_oidc_provider() {
             --thumbprint-list 1c58a3a8518e8759bf075b76b750d4f2df264fcd \
             --client-id-list sts.amazonaws.com \
             --tags Key=Project,Value=ActivityTracker Key=Purpose,Value=GitHubActions
-        
+
         print_status "GitHub OIDC provider created successfully!"
     fi
 }
@@ -116,7 +116,7 @@ check_oidc_provider() {
 # Function to create trust policy
 create_trust_policy() {
     print_status "Creating IAM role trust policy..."
-    
+
     cat > /tmp/github-trust-policy.json << EOF
 {
     "Version": "2012-10-17",
@@ -139,14 +139,14 @@ create_trust_policy() {
     ]
 }
 EOF
-    
+
     print_status "Trust policy created."
 }
 
 # Function to create permissions policy
 create_permissions_policy() {
     print_status "Creating IAM permissions policy..."
-    
+
     cat > /tmp/github-permissions-policy.json << 'EOF'
 {
     "Version": "2012-10-17",
@@ -320,21 +320,21 @@ create_permissions_policy() {
     ]
 }
 EOF
-    
+
     print_status "Permissions policy created."
 }
 
 # Function to create IAM role
 create_iam_role() {
     ROLE_NAME="ActivityTracker-GitHubActions"
-    
+
     print_status "Creating IAM role: $ROLE_NAME"
-    
+
     # Check if role already exists
     if aws iam get-role --role-name "$ROLE_NAME" &> /dev/null; then
         print_warning "Role $ROLE_NAME already exists."
         read -p "Do you want to update it? (y/n): " UPDATE_ROLE
-        
+
         if [[ $UPDATE_ROLE == "y" || $UPDATE_ROLE == "Y" ]]; then
             print_status "Updating role trust policy..."
             aws iam update-assume-role-policy \
@@ -347,16 +347,16 @@ create_iam_role() {
             --assume-role-policy-document file:///tmp/github-trust-policy.json \
             --description "Role for GitHub Actions to deploy ActivityTracker" \
             --tags Key=Project,Value=ActivityTracker Key=Purpose,Value=GitHubActions
-        
+
         print_status "IAM role created successfully!"
     fi
-    
+
     # Create and attach permissions policy
     POLICY_NAME="ActivityTracker-GitHubActions-Policy"
     POLICY_ARN="arn:aws:iam::$AWS_ACCOUNT_ID:policy/$POLICY_NAME"
-    
+
     print_status "Creating and attaching permissions policy..."
-    
+
     # Check if policy exists
     if aws iam get-policy --policy-arn "$POLICY_ARN" &> /dev/null; then
         print_status "Policy already exists, creating new version..."
@@ -370,17 +370,17 @@ create_iam_role() {
             --policy-document file:///tmp/github-permissions-policy.json \
             --description "Permissions for GitHub Actions to deploy ActivityTracker"
     fi
-    
+
     # Attach policy to role
     aws iam attach-role-policy \
         --role-name "$ROLE_NAME" \
         --policy-arn "$POLICY_ARN"
-    
+
     print_status "Permissions policy attached successfully!"
-    
+
     # Get and display role ARN
     ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
-    
+
     echo ""
     print_status "🎉 IAM Role setup completed successfully!"
     echo ""
@@ -411,17 +411,17 @@ cleanup() {
 # Main execution
 main() {
     print_header
-    
+
     # Set up cleanup trap
     trap cleanup EXIT
-    
+
     check_prerequisites
     get_user_inputs
     check_oidc_provider
     create_trust_policy
     create_permissions_policy
     create_iam_role
-    
+
     print_status "Setup completed successfully! 🚀"
 }
 

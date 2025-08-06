@@ -6,8 +6,9 @@ business logic methods. These tests ensure data integrity and proper
 validation of user input.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError
 
 from src.activitytracker.models.activity import Activity, ActivityType

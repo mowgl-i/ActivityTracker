@@ -11,8 +11,9 @@ Classes:
 """
 
 import os
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
@@ -69,10 +70,10 @@ class PinpointService:
             # Verify application exists
             self._verify_application()
 
-        except NoCredentialsError:
-            raise NoCredentialsError(
+        except NoCredentialsError as e:
+            raise ValueError(
                 "AWS credentials not found. Please configure AWS credentials."
-            )
+            ) from e
 
     def send_sms_response(
         self, phone_number: str, message: str, message_type: str = "TRANSACTIONAL"
@@ -244,8 +245,8 @@ class PinpointService:
             message += f"{i}. {suggestion}\n"
 
         message += (
-            f"\n📱 Example: 'WORK team meeting for 60 minutes in conference room'\n\n"
-            f"Try again with more details!"
+            "\n📱 Example: 'WORK team meeting for 60 minutes in conference room'\n\n"
+            "Try again with more details!"
         )
 
         return self.send_sms_response(phone_number, message)
@@ -347,10 +348,10 @@ class PinpointService:
             if e.response["Error"]["Code"] == "NotFoundException":
                 raise ValueError(
                     f"Pinpoint application '{self.application_id}' not found"
-                )
+                ) from e
             raise ValueError(
                 f"Cannot access Pinpoint application: {e.response['Error']['Message']}"
-            )
+            ) from e
 
     def _get_origination_number(self) -> Optional[str]:
         """

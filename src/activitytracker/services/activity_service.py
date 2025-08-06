@@ -9,8 +9,8 @@ Classes:
     ActivityService: Core business logic service for activity management
 """
 
-from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from ..models.activity import Activity, ActivityType
 from ..models.sms import SMSMessage
@@ -79,7 +79,7 @@ class ActivityService:
             >>> if result['success']:
             ...     print(f"Activity created: {result['activity'].id}")
         """
-        result = {
+        result: Dict[str, Any] = {
             "success": False,
             "activity": None,
             "error": None,
@@ -148,7 +148,7 @@ class ActivityService:
             - error: error message if validation failed
             - suggestions: list of suggestions for improvement
         """
-        validation = {"valid": True, "error": None, "suggestions": []}
+        validation: Dict[str, Any] = {"valid": True, "error": None, "suggestions": []}
 
         # Check required fields
         if not activity.description or len(activity.description.strip()) < 3:

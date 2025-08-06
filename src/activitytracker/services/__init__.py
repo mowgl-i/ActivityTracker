@@ -13,8 +13,8 @@ Classes:
 """
 
 from .activity_service import ActivityService
-from .pinpoint_service import PinpointService
 from .dynamodb_service import DynamoDBService
+from .pinpoint_service import PinpointService
 from .sms_parsing_service import SMSParsingService
 
 __all__ = ["ActivityService", "PinpointService", "DynamoDBService", "SMSParsingService"]

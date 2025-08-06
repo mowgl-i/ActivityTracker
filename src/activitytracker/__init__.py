@@ -19,7 +19,7 @@ __version__ = "0.1.0"
 __author__ = "Generated with Claude Code"
 
 from .models import Activity, ActivityType, SMSMessage
-from .services import ActivityService, PinpointService, DynamoDBService
+from .services import ActivityService, DynamoDBService, PinpointService
 
 __all__ = [
     "Activity",

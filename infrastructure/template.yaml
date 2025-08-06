@@ -24,13 +24,13 @@ Parameters:
     Default: dev
     AllowedValues: [dev, staging, prod]
     Description: Deployment environment
-    
-  # Pinpoint configuration parameters  
+
+  # Pinpoint configuration parameters
   PinpointProjectName:
     Type: String
     Default: ActivityTracker
     Description: Name for the Pinpoint project
-    
+
   # Phone number for SMS receiving (optional)
   PhoneNumber:
     Type: String
@@ -98,7 +98,7 @@ Resources:
             - Effect: Allow
               Action:
                 - logs:CreateLogGroup
-                - logs:CreateLogStream  
+                - logs:CreateLogStream
                 - logs:PutLogEvents
               Resource: "*"
       Tags:
@@ -128,7 +128,7 @@ Resources:
             RestApiId: !Ref ActivityTrackerAPI
             Path: /health
             Method: GET
-            
+
         # Get activities endpoint
         GetActivities:
           Type: Api
@@ -136,7 +136,7 @@ Resources:
             RestApiId: !Ref ActivityTrackerAPI
             Path: /activities
             Method: GET
-            
+
         # Get activity by ID
         GetActivity:
           Type: Api
@@ -144,15 +144,15 @@ Resources:
             RestApiId: !Ref ActivityTrackerAPI
             Path: /activities/{id}
             Method: GET
-            
-        # Create activity endpoint  
+
+        # Create activity endpoint
         CreateActivity:
           Type: Api
           Properties:
             RestApiId: !Ref ActivityTrackerAPI
             Path: /activities
             Method: POST
-            
+
         # Get activity statistics
         GetStats:
           Type: Api
@@ -160,7 +160,7 @@ Resources:
             RestApiId: !Ref ActivityTrackerAPI
             Path: /stats
             Method: GET
-            
+
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ActivitiesTable
@@ -198,7 +198,7 @@ Resources:
           ResponseParameters:
             Headers:
               Access-Control-Allow-Origin: !If
-                - IsProduction  
+                - IsProduction
                 - !Sub "https://${DashboardCloudFront.DomainName}"
                 - "'*'"
         DEFAULT_5XX:
@@ -208,7 +208,7 @@ Resources:
             Headers:
               Access-Control-Allow-Origin: !If
                 - IsProduction
-                - !Sub "https://${DashboardCloudFront.DomainName}" 
+                - !Sub "https://${DashboardCloudFront.DomainName}"
                 - "'*'"
       Tags:
         Environment: !Ref Environment
@@ -291,7 +291,7 @@ Resources:
           - Key: Project
             Value: ActivityTracker
 
-  # Pinpoint application for SMS handling  
+  # Pinpoint application for SMS handling
   PinpointApp:
     Type: AWS::Pinpoint::App
     Properties:
@@ -349,7 +349,7 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-APIGatewayURL"
 
-  # CloudFront distribution URL  
+  # CloudFront distribution URL
   DashboardURL:
     Description: Dashboard CloudFront URL
     Value: !Sub "https://${DashboardCloudFront.DomainName}"
@@ -385,7 +385,7 @@ Outputs:
       Name: !Sub "${AWS::StackName}-SMSProcessorFunction"
 
   APIFunctionName:
-    Description: API Lambda function name  
+    Description: API Lambda function name
     Value: !Ref APIFunction
     Export:
       Name: !Sub "${AWS::StackName}-APIFunction"

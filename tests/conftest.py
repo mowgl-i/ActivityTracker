@@ -13,20 +13,18 @@ Fixtures:
 """
 
 import os
-import pytest
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
-from unittest.mock import Mock, patch
+from typing import Any, Dict, List
 
 import boto3
-from moto import mock_dynamodb
+import pytest
+from moto import mock_aws
 
 from src.activitytracker.models.activity import Activity, ActivityType
 from src.activitytracker.models.sms import SMSMessage
 from src.activitytracker.services.activity_service import ActivityService
 from src.activitytracker.services.dynamodb_service import DynamoDBService
 from src.activitytracker.services.sms_parsing_service import SMSParsingService
-
 
 # Test configuration constants
 TEST_TABLE_NAME = "test-activities-table"
@@ -50,7 +48,7 @@ def aws_credentials():
 
 
 @pytest.fixture
-def mock_dynamodb_table(aws_credentials):
+def mock_dynamodb_table(aws_credentials):  # noqa: ARG001
     """
     Fixture that creates a mocked DynamoDB table for testing.
 
@@ -61,7 +59,7 @@ def mock_dynamodb_table(aws_credentials):
     Returns:
         boto3.resource.Table: Mocked DynamoDB table resource
     """
-    with mock_dynamodb():
+    with mock_aws():
         # Create DynamoDB resource
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
@@ -93,7 +91,7 @@ def mock_dynamodb_table(aws_credentials):
 
 
 @pytest.fixture
-def dynamodb_service(mock_dynamodb_table):
+def dynamodb_service(mock_dynamodb_table):  # noqa: ARG001
     """
     Fixture that provides a DynamoDBService instance for testing.
 

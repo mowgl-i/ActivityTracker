@@ -10,10 +10,11 @@ Classes:
 """
 
 import os
-from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from boto3.dynamodb.conditions import Key, Attr
+from typing import Any, Dict, List, Optional
+
 import boto3
+from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError, NoCredentialsError
 
 from ..models.activity import Activity
@@ -68,13 +69,13 @@ class DynamoDBService:
             # Verify table exists by getting its description
             self.table.load()
 
-        except NoCredentialsError:
-            raise NoCredentialsError(
+        except NoCredentialsError as e:
+            raise ValueError(
                 "AWS credentials not found. Please configure AWS credentials."
-            )
+            ) from e
         except ClientError as e:
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
-                raise ValueError(f"DynamoDB table '{self.table_name}' not found")
+                raise ValueError(f"DynamoDB table '{self.table_name}' not found") from e
             raise
 
     def save_activity(self, activity: Activity) -> bool:
@@ -111,7 +112,9 @@ class DynamoDBService:
             response = self.table.put_item(Item=item)
 
             # Check if the operation was successful
-            return response["ResponseMetadata"]["HTTPStatusCode"] == 200
+            return bool(
+                response.get("ResponseMetadata", {}).get("HTTPStatusCode") == 200
+            )
 
         except ClientError as e:
             print(f"Error saving activity {activity.id}: {e}")

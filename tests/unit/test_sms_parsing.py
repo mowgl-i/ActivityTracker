@@ -6,7 +6,6 @@ duration extraction, location parsing, and confidence scoring.
 """
 
 import pytest
-from datetime import datetime
 
 from src.activitytracker.models.activity import ActivityType
 from src.activitytracker.models.sms import SMSMessage

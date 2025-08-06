@@ -1,0 +1,144 @@
+# Pre-commit hooks configuration for ActivityTracker
+# This file defines code quality checks that run before each commit
+# to ensure consistent code quality and catch issues early.
+
+repos:
+  # Pre-commit hooks for basic checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      # Check for merge conflict markers
+      - id: check-merge-conflict
+
+      # Check YAML syntax
+      - id: check-yaml
+        exclude: ^infrastructure/template\.yaml$  # SAM templates have special YAML syntax
+
+      # Check JSON syntax
+      - id: check-json
+
+      # Check for large files
+      - id: check-added-large-files
+        args: ['--maxkb=1000']  # 1MB limit
+
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+
+      # Ensure files end with newline
+      - id: end-of-file-fixer
+
+      # Check Python syntax
+      - id: check-ast
+
+      # Sort imports alphabetically
+      - id: check-builtin-literals
+
+      # Check for debug statements
+      - id: debug-statements
+
+  # Black code formatter
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        name: "🎨 Format Python code with Black"
+        language_version: python3.11
+        args: [--line-length=88, --target-version=py311]
+        files: ^(src|tests)/.*\.py$
+
+  # Ruff linter for fast Python linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.15
+    hooks:
+      - id: ruff
+        name: "🔍 Lint Python code with Ruff"
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(src|tests)/.*\.py$
+
+  # MyPy for static type checking (temporarily disabled)
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #     - id: mypy
+  #       name: "🔬 Type check with MyPy"
+  #       files: ^src/.*\.py$
+  #       args: [--python-version=3.11]
+  #       additional_dependencies:
+  #         - boto3-stubs[dynamodb,pinpoint]
+  #         - types-python-dateutil
+  #         - pydantic
+
+  # Security checks with bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        name: "🛡️ Security check with Bandit"
+        args: [-r, src/]
+        files: ^src/.*\.py$
+        pass_filenames: false
+
+  # Check for secrets/credentials
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: "🔐 Detect secrets and credentials"
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            .*\.lock$|
+            .*\.min\.js$|
+            .*\.map$|
+            .*tests/.*|
+            .*\.md$
+          )$
+
+  # Local hooks for project-specific checks
+  - repo: local
+    hooks:
+      # Run tests (temporarily disabled)
+      # - id: pytest
+      #   name: "🧪 Run tests with pytest"
+      #   entry: uv run pytest
+      #   language: system
+      #   files: ^(src|tests)/.*\.py$
+      #   pass_filenames: false
+      #   args: [--tb=short, -q]
+
+      # Check SAM template syntax (requires AWS SAM CLI)
+      # - id: sam-validate
+      #   name: "☁️ Validate SAM template"
+      #   entry: sam validate --template-file infrastructure/template.yaml
+      #   language: system
+      #   files: ^infrastructure/template\.yaml$
+      #   pass_filenames: false
+
+      # Check UV lock file is up to date
+      - id: uv-lock-check
+        name: "📦 Check UV lock file is current"
+        entry: uv lock --check
+        language: system
+        files: ^pyproject\.toml$
+        pass_filenames: false
+
+# Global configuration
+default_language_version:
+  python: python3.11
+
+# Files to exclude from all hooks
+exclude: |
+  (?x)^(
+    \.venv/.*|
+    \.aws-sam/.*|
+    node_modules/.*|
+    \.git/.*|
+    .*\.pyc$|
+    .*__pycache__.*
+  )$
+
+# Fail fast - stop on first failure
+fail_fast: true
+
+# Minimum pre-commit version required
+minimum_pre_commit_version: "3.0.0"

@@ -10,8 +10,7 @@ Classes:
 """
 
 import re
-from typing import Optional, Dict, Any, List, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 
 from ..models.activity import Activity, ActivityType
 from ..models.sms import SMSMessage
@@ -38,7 +37,7 @@ class SMSParsingService:
         ActivityType.WORK
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize the SMS parsing service with keyword mappings and patterns.
 
@@ -228,9 +227,7 @@ class SMSParsingService:
                 return self.activity_keywords[keyword_lower]
 
         # Score each activity type based on keyword matches
-        type_scores: Dict[ActivityType, int] = {
-            activity_type: 0 for activity_type in ActivityType
-        }
+        type_scores: Dict[ActivityType, int] = dict.fromkeys(ActivityType, 0)
 
         for word, activity_type in self.activity_keywords.items():
             if word in message_lower:
@@ -242,7 +239,7 @@ class SMSParsingService:
 
         # Return the activity type with the highest score
         if max(type_scores.values()) > 0:
-            return max(type_scores, key=type_scores.get)
+            return max(type_scores, key=lambda x: type_scores[x])
 
         return ActivityType.OTHER
 
@@ -328,8 +325,8 @@ class SMSParsingService:
         self,
         message_body: str,
         activity_type: ActivityType,
-        duration_minutes: Optional[int],
-        location: Optional[str],
+        duration_minutes: Optional[int],  # noqa: ARG002
+        location: Optional[str],  # noqa: ARG002
     ) -> str:
         """
         Create a clean description by removing extracted information.
@@ -436,7 +433,7 @@ class SMSParsingService:
 
         # Check for activity type keywords
         has_activity_keyword = any(
-            keyword in message_body.lower() for keyword in self.activity_keywords.keys()
+            keyword in message_body.lower() for keyword in self.activity_keywords
         )
 
         if not has_activity_keyword:
