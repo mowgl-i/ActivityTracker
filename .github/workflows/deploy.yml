@@ -194,6 +194,8 @@ jobs:
         run: |
           echo "Validating SAM template..."
           cd infrastructure
+          # Set default region for template validation (no AWS calls made)
+          export AWS_DEFAULT_REGION=us-east-1
           sam validate || {
             echo "❌ SAM template validation failed"
             exit 1

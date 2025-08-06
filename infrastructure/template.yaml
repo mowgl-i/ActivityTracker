@@ -389,3 +389,10 @@ Outputs:
     Value: !Ref APIFunction
     Export:
       Name: !Sub "${AWS::StackName}-APIFunction"
+
+  # CloudFront distribution ID for cache invalidation
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID for dashboard cache invalidation
+    Value: !Ref DashboardCloudFront
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
