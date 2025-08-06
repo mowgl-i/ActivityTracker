@@ -48,7 +48,6 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   SAM_CLI_VERSION: '1.100.0'
-  NODE_VERSION: '18'
 
 # Define job execution permissions
 permissions:
@@ -73,12 +72,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Set up Python environment with caching
+      # Set up Python environment
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       # Install UV package manager for fast dependency management
       - name: 📦 Install UV
@@ -164,7 +162,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -179,7 +177,7 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          uv sync --dev
+          uv sync --extra dev
 
       # Build SAM application
       - name: 🏗️ Build SAM application
@@ -230,7 +228,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🐍 Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -260,7 +258,7 @@ jobs:
             echo "environment=dev" >> $GITHUB_OUTPUT
           fi
 
-          ENV=$(cat $GITHUB_OUTPUT | grep environment | cut -d'=' -f2)
+          ENV="${{ steps.env.outputs.environment }}"
           echo "🎯 Deploying to environment: $ENV"
 
       # Restore build cache
@@ -347,7 +345,7 @@ jobs:
           ENV="${{ steps.env.outputs.environment }}"
           DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
             --stack-name "ActivityTracker-$ENV" \
-            --query 'Stacks[0].Resources[?LogicalResourceId==`DashboardCloudFront`].PhysicalResourceId' \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
             --output text)
 
           if [[ "$DISTRIBUTION_ID" != "None" && "$DISTRIBUTION_ID" != "" ]]; then
