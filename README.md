@@ -585,7 +585,4 @@ If you encounter any issues or have questions:
    - Relevant log snippets (with sensitive data removed)
 
 ---
-
-**🤖 Generated with [Claude Code](https://claude.ai/code)**
-
 *ActivityTracker - Making activity tracking as simple as sending a text message!* 📱✨
