@@ -89,7 +89,7 @@ jobs:
       # Install project dependencies
       - name: 📚 Install dependencies
         run: |
-          uv sync --dev
+          uv sync --extra dev
 
       # Run code formatting checks
       - name: 🎨 Check code formatting

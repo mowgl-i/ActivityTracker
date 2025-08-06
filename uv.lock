@@ -15,22 +15,14 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "black" },
+    { name = "boto3-stubs" },
+    { name = "detect-secrets" },
     { name = "moto" },
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "boto3-stubs" },
-    { name = "detect-secrets" },
-    { name = "moto" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
     { name = "types-python-dateutil" },
 ]
 
@@ -38,27 +30,19 @@ dev = [
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
     { name = "boto3", specifier = ">=1.34.0" },
-    { name = "moto", marker = "extra == 'dev'", specifier = ">=4.2.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
+    { name = "boto3-stubs", marker = "extra == 'dev'", specifier = ">=1.40.4" },
+    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.5.0" },
+    { name = "moto", marker = "extra == 'dev'", specifier = ">=5.1.9" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.1" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.2.0" },
     { name = "pydantic", specifier = ">=2.5.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.1" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2.1" },
     { name = "python-dateutil", specifier = ">=2.8.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.7" },
+    { name = "types-python-dateutil", marker = "extra == 'dev'", specifier = ">=2.9.0.20250708" },
 ]
 provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "boto3-stubs", specifier = ">=1.40.4" },
-    { name = "detect-secrets", specifier = ">=1.5.0" },
-    { name = "moto", specifier = ">=5.1.9" },
-    { name = "mypy", specifier = ">=1.17.1" },
-    { name = "pytest", specifier = ">=8.4.1" },
-    { name = "pytest-cov", specifier = ">=6.2.1" },
-    { name = "types-python-dateutil", specifier = ">=2.9.0.20250708" },
-]
 
 [[package]]
 name = "annotated-types"
