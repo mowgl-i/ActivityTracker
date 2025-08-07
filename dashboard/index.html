@@ -112,6 +112,43 @@
         const { useState, useEffect, useRef } = React;
 
         /**
+         * Utility function to mask phone numbers for privacy
+         * Converts +1234567890 to +1***-***-7890 (shows country code and last 4 digits)
+         */
+        function maskPhoneNumber(phoneNumber) {
+            if (!phoneNumber) return phoneNumber;
+
+            // Handle US format: +1234567890 -> +1***-***-7890
+            if (phoneNumber.match(/^\+1\d{10}$/)) {
+                return phoneNumber.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1***-***-$4');
+            }
+
+            // Handle other formats - show first 3 and last 3 characters
+            if (phoneNumber.length > 6) {
+                const start = phoneNumber.substring(0, 3);
+                const end = phoneNumber.substring(phoneNumber.length - 3);
+                const stars = '*'.repeat(Math.max(3, phoneNumber.length - 6));
+                return `${start}${stars}${end}`;
+            }
+
+            // For short numbers, mask all but first character
+            return phoneNumber.length > 1 ? phoneNumber[0] + '*'.repeat(phoneNumber.length - 1) : phoneNumber;
+        }
+
+        /**
+         * Generate a user-friendly label for phone numbers in filters
+         * Converts +1234567890 to "Device 1234" based on last 4 digits
+         */
+        function createPhoneLabel(phoneNumber, index) {
+            if (!phoneNumber) return `Device ${index + 1}`;
+
+            // Extract last 4 digits for a more user-friendly identifier
+            const match = phoneNumber.match(/(\d{4})$/);
+            const last4 = match ? match[1] : String(index + 1).padStart(4, '0');
+            return `Device ${last4}`;
+        }
+
+        /**
          * Main Dashboard Component
          *
          * The root component that manages the overall dashboard state and layout.
@@ -369,7 +406,7 @@
                         {/* Phone Number Filter */}
                         <div>
                             <label htmlFor="phone-filter" className="block text-sm font-medium text-gray-700 mb-2">
-                                Phone Number
+                                Device
                             </label>
                             <select
                                 id="phone-filter"
@@ -377,10 +414,10 @@
                                 onChange={(e) => onPhoneChange(e.target.value)}
                                 className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                             >
-                                <option value="">All Phone Numbers</option>
-                                {uniquePhones.map(phone => (
+                                <option value="">All Devices</option>
+                                {uniquePhones.map((phone, index) => (
                                     <option key={phone} value={phone}>
-                                        {phone}
+                                        {createPhoneLabel(phone, index)}
                                     </option>
                                 ))}
                             </select>
@@ -619,7 +656,7 @@
                                     )}
 
                                     <span>
-                                        📱 {activity.phone_number.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1-$2-$3-$4')}
+                                        📱 {maskPhoneNumber(activity.phone_number)}
                                     </span>
                                 </div>
                             </div>
