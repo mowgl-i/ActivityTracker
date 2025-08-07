@@ -183,6 +183,7 @@ class SMSMessage(BaseModel):
 
         Parses the AWS Pinpoint event structure to extract SMS message
         information and create a validated SMSMessage instance.
+        Handles both direct SMS data format and legacy Pinpoint event format.
 
         Args:
             event: AWS Pinpoint event dictionary
@@ -192,58 +193,93 @@ class SMSMessage(BaseModel):
 
         Raises:
             ValueError: If event format is invalid or required fields missing
-
-        Example:
-            >>> event = {
-            ...     'Records': [{
-            ...         'pinpoint': {
-            ...             'sms': {
-            ...                 'messageId': 'msg-123',
-            ...                 'originationNumber': '+1234567890',
-            ...                 'messageBody': 'WORK meeting with team',
-            ...                 'timestamp': '2024-01-15T14:30:00Z'
-            ...             }
-            ...         }
-            ...     }]
-            ... }
-            >>> sms = SMSMessage.from_pinpoint_event(event)
         """
         try:
-            # Navigate the Pinpoint event structure
-            record = event["Records"][0]
-            sms_data = record["pinpoint"]["sms"]
+            # Check for direct SMS data format (from SNS message body)
+            if "originationNumber" in event and "messageBody" in event:
+                print("DEBUG: Using direct SMS data format")
 
-            # Extract required fields
-            message_id = sms_data["messageId"]
-            phone_number = sms_data["originationNumber"]
-            message_body = sms_data["messageBody"]
+                # Extract required fields
+                message_id = event.get(
+                    "inboundMessageId", f"sms_{datetime.utcnow().timestamp()}"
+                )
+                phone_number = event["originationNumber"]
+                message_body = event["messageBody"]
 
-            # Parse timestamp if present
-            timestamp = datetime.utcnow()
-            if "timestamp" in sms_data:
-                timestamp = datetime.fromisoformat(
-                    sms_data["timestamp"].replace("Z", "+00:00")
+                # Parse timestamp (use current time as fallback)
+                timestamp = datetime.utcnow()
+
+                # Extract keyword from messageKeyword field or message body
+                keyword = None
+                if "messageKeyword" in event:
+                    keyword_raw = event["messageKeyword"]
+                    # Remove the account ID suffix from keyword
+                    keyword = keyword_raw.replace("_305781341404", "").replace(
+                        "KEYWORD_", ""
+                    )
+
+                # Collect additional metadata
+                metadata = {
+                    "destinationNumber": event.get("destinationNumber"),
+                    "messageKeyword": event.get("messageKeyword"),
+                    "previousPublishedMessageId": event.get(
+                        "previousPublishedMessageId"
+                    ),
+                    "source": "sns_direct",
+                }
+
+                return cls(
+                    message_id=message_id,
+                    phone_number=phone_number,
+                    message_body=message_body,
+                    timestamp=timestamp,
+                    keyword=keyword,
+                    metadata={k: v for k, v in metadata.items() if v is not None},
                 )
 
-            # Extract keyword if present
-            keyword = sms_data.get("keyword")
+            # Legacy Pinpoint event structure
+            elif "Records" in event and len(event["Records"]) > 0:
+                print("DEBUG: Using legacy Pinpoint event format")
+                record = event["Records"][0]
+                sms_data = record["pinpoint"]["sms"]
 
-            # Collect additional metadata
-            metadata = {
-                "messageType": sms_data.get("messageType"),
-                "destinationNumber": sms_data.get("destinationNumber"),
-                "country": sms_data.get("isoCountryCode"),
-                "carrier": sms_data.get("carrierName"),
-            }
+                # Extract required fields
+                message_id = sms_data["messageId"]
+                phone_number = sms_data["originationNumber"]
+                message_body = sms_data["messageBody"]
 
-            return cls(
-                message_id=message_id,
-                phone_number=phone_number,
-                message_body=message_body,
-                timestamp=timestamp,
-                keyword=keyword,
-                metadata={k: v for k, v in metadata.items() if v is not None},
-            )
+                # Parse timestamp if present
+                timestamp = datetime.utcnow()
+                if "timestamp" in sms_data:
+                    timestamp = datetime.fromisoformat(
+                        sms_data["timestamp"].replace("Z", "+00:00")
+                    )
+
+                # Extract keyword if present
+                keyword = sms_data.get("keyword")
+
+                # Collect additional metadata
+                metadata = {
+                    "messageType": sms_data.get("messageType"),
+                    "destinationNumber": sms_data.get("destinationNumber"),
+                    "country": sms_data.get("isoCountryCode"),
+                    "carrier": sms_data.get("carrierName"),
+                    "source": "pinpoint_direct",
+                }
+
+                return cls(
+                    message_id=message_id,
+                    phone_number=phone_number,
+                    message_body=message_body,
+                    timestamp=timestamp,
+                    keyword=keyword,
+                    metadata={k: v for k, v in metadata.items() if v is not None},
+                )
+
+            else:
+                raise ValueError(
+                    "Event format not recognized - missing required fields"
+                )
 
         except (KeyError, IndexError, ValueError) as e:
             raise ValueError(f"Invalid Pinpoint event format: {e}") from e

@@ -8,7 +8,7 @@ Description: >
 # Global configuration for all Lambda functions
 Globals:
   Function:
-    Runtime: python3.11
+    Runtime: python3.10
     Timeout: 30
     MemorySize: 256
     Environment:
@@ -115,10 +115,7 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
-          CORS_ORIGIN: !If
-            - IsProduction
-            - !GetAtt DashboardCloudFront.DomainName
-            - "*"
+          CORS_ORIGIN: "*"
       Events:
         # Health check endpoint
         HealthCheck:
@@ -185,10 +182,7 @@ Resources:
       Cors:
         AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: !If
-          - IsProduction
-          - !Sub "https://${DashboardCloudFront.DomainName}"
-          - "'*'"
+        AllowOrigin: "'*'"
         MaxAge: "'600'"
       GatewayResponses:
         DEFAULT_4XX:
@@ -196,19 +190,13 @@ Resources:
             application/json: '{"message": "Resource not found"}'
           ResponseParameters:
             Headers:
-              Access-Control-Allow-Origin: !If
-                - IsProduction
-                - !Sub "https://${DashboardCloudFront.DomainName}"
-                - "'*'"
+              Access-Control-Allow-Origin: "'*'"
         DEFAULT_5XX:
           ResponseTemplates:
             application/json: '{"message": "Internal server error"}'
           ResponseParameters:
             Headers:
-              Access-Control-Allow-Origin: !If
-                - IsProduction
-                - !Sub "https://${DashboardCloudFront.DomainName}"
-                - "'*'"
+              Access-Control-Allow-Origin: "'*'"
       Tags:
         Environment: !Ref Environment
         Project: ActivityTracker
@@ -249,22 +237,6 @@ Resources:
         SigningProtocol: sigv4
         Description: !Sub "OAC for ActivityTracker Dashboard ${Environment}"
 
-  # S3 bucket policy for CloudFront access
-  DashboardBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref DashboardBucket
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
-            Resource: !Sub "${DashboardBucket}/*"
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DashboardCloudFront}"
-
   # CloudFront distribution for dashboard
   DashboardCloudFront:
     Type: AWS::CloudFront::Distribution
@@ -292,11 +264,28 @@ Resources:
             ErrorCachingMinTTL: 300
         PriceClass: PriceClass_100
         HttpVersion: http2
-        Tags:
-          - Key: Environment
-            Value: !Ref Environment
-          - Key: Project
-            Value: ActivityTracker
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: ActivityTracker
+
+  # S3 bucket policy for CloudFront access
+  DashboardBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: DashboardCloudFront
+    Properties:
+      Bucket: !Ref DashboardBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${DashboardBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DashboardCloudFront}"
 
   # Pinpoint application for SMS handling
   PinpointApp:
@@ -334,7 +323,31 @@ Resources:
         - Key: Project
           Value: ActivityTracker
 
-  # Lambda permission for Pinpoint to invoke SMS processor
+  # SNS topic for inbound SMS routing
+  InboundSMSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "ActivityTracker-InboundSMS-${Environment}"
+      DisplayName: !Sub "ActivityTracker Inbound SMS Topic ${Environment}"
+
+  # SNS subscription to trigger SMS processor Lambda
+  InboundSMSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref InboundSMSTopic
+      Endpoint: !GetAtt SMSProcessorFunction.Arn
+
+  # Lambda permission for SNS to invoke SMS processor
+  SNSLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SMSProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref InboundSMSTopic
+
+  # Lambda permission for Pinpoint to invoke SMS processor (backup/direct invocation)
   PinpointLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -359,7 +372,9 @@ Outputs:
   # CloudFront distribution URL
   DashboardURL:
     Description: Dashboard CloudFront URL
-    Value: !Sub "https://${DashboardCloudFront.DomainName}"
+    Value: !Sub
+      - "https://${CloudFrontDomain}"
+      - CloudFrontDomain: !GetAtt DashboardCloudFront.DomainName
     Export:
       Name: !Sub "${AWS::StackName}-DashboardURL"
 
@@ -403,3 +418,10 @@ Outputs:
     Value: !Ref DashboardCloudFront
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
+
+  # SNS topic ARN for inbound SMS configuration
+  InboundSMSTopicArn:
+    Description: SNS Topic ARN for configuring Pinpoint inbound SMS
+    Value: !Ref InboundSMSTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-InboundSMSTopic"

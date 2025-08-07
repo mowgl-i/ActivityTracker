@@ -245,7 +245,11 @@ def _handle_get_activities(
         for activity in activities:
             activity_dict = activity.dict()
             activity_dict["timestamp"] = activity.timestamp.isoformat()
-            activity_dict["activity_type"] = activity.activity_type.value
+            activity_dict["activity_type"] = (
+                activity.activity_type.value
+                if hasattr(activity.activity_type, "value")
+                else activity.activity_type
+            )
             activities_data.append(activity_dict)
 
         response_data = {
@@ -400,7 +404,11 @@ def _handle_create_activity(
             # Convert to JSON-serializable format
             activity_dict = activity.dict()
             activity_dict["timestamp"] = activity.timestamp.isoformat()
-            activity_dict["activity_type"] = activity.activity_type.value
+            activity_dict["activity_type"] = (
+                activity.activity_type.value
+                if hasattr(activity.activity_type, "value")
+                else activity.activity_type
+            )
 
             response_data = {
                 "activity": activity_dict,

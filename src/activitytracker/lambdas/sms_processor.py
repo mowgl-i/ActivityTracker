@@ -90,17 +90,32 @@ def lambda_handler(
 
     try:
         # Log incoming event for debugging (mask sensitive data)
+        print(f"DEBUG: Raw event received: {json.dumps(event, default=str)[:1000]}")
         _log_event_received(event)
 
+        # Handle both SNS and direct Pinpoint events
+        print("DEBUG: Extracting Pinpoint event from SNS wrapper...")
+        pinpoint_event = _extract_pinpoint_event(event)
+        print(
+            f"DEBUG: Extracted Pinpoint event: {json.dumps(pinpoint_event, default=str)[:1000]}"
+        )
+
         # Validate event structure
-        if not _validate_event_structure(event):
+        print("DEBUG: Validating event structure...")
+        if not _validate_event_structure(pinpoint_event):
+            print("ERROR: Event structure validation failed")
             return _create_error_response(
                 400, "Invalid event structure - expected Pinpoint SMS event", start_time
             )
+        print("DEBUG: Event structure validation passed")
 
         # Extract SMS message from Pinpoint event
         try:
-            sms_message = SMSMessage.from_pinpoint_event(event)
+            print("DEBUG: Extracting SMS message from Pinpoint event...")
+            sms_message = SMSMessage.from_pinpoint_event(pinpoint_event)
+            print(
+                f"DEBUG: SMS message extracted successfully: {sms_message.message_body[:100]}"
+            )
             response["metadata"].update(
                 {
                     "messageId": sms_message.message_id,
@@ -110,6 +125,7 @@ def lambda_handler(
             )
 
         except ValueError as e:
+            print(f"ERROR: Failed to extract SMS data: {e}")
             _log_processing_error("SMS_EXTRACTION_ERROR", str(e), event)
             return _create_error_response(
                 400, f"Failed to extract SMS data: {str(e)}", start_time
@@ -117,15 +133,29 @@ def lambda_handler(
 
         # Initialize activity service
         try:
+            print("DEBUG: Initializing ActivityService...")
             activity_service = ActivityService()
+            print("DEBUG: ActivityService initialized successfully")
         except Exception as e:
+            print(f"ERROR: Service initialization failed: {e}")
             _log_processing_error("SERVICE_INITIALIZATION_ERROR", str(e), event)
             return _create_error_response(
                 500, "Service initialization failed", start_time
             )
 
         # Process the SMS message
-        processing_result = activity_service.process_sms_message(sms_message)
+        print("DEBUG: Processing SMS message...")
+        try:
+            processing_result = activity_service.process_sms_message(sms_message)
+            print(
+                f"DEBUG: Processing result: {processing_result.get('success', False)}"
+            )
+        except Exception as e:
+            print(f"ERROR: SMS processing failed: {e}")
+            _log_processing_error("SMS_PROCESSING_ERROR", str(e), event)
+            return _create_error_response(
+                500, f"SMS processing failed: {str(e)}", start_time
+            )
 
         # Handle processing results
         if processing_result["success"]:
@@ -139,7 +169,11 @@ def lambda_handler(
                     "activityId": activity.id,
                     "metadata": {
                         **response["metadata"],
-                        "activityType": activity.activity_type.value,
+                        "activityType": (
+                            activity.activity_type.value
+                            if hasattr(activity.activity_type, "value")
+                            else activity.activity_type
+                        ),
                         "confidence": processing_result.get("confidence", 0.0),
                         "duration": activity.duration_minutes,
                         "location": activity.location,
@@ -176,6 +210,11 @@ def lambda_handler(
 
     except Exception as e:
         # Unexpected error during processing
+        print(f"CRITICAL ERROR: Unexpected error during processing: {e}")
+        print(f"CRITICAL ERROR: Exception type: {type(e).__name__}")
+        import traceback
+
+        print(f"CRITICAL ERROR: Full traceback: {traceback.format_exc()}")
         _log_processing_error("UNEXPECTED_ERROR", str(e), event, exc_info=True)
         response = _create_error_response(
             500, "Unexpected processing error occurred", start_time
@@ -208,20 +247,35 @@ def _validate_event_structure(event: Dict[str, Any]) -> bool:
         True if event structure is valid, False otherwise
     """
     try:
-        # Check for basic Pinpoint SMS event structure
+        print(f"DEBUG: _validate_event_structure - Event keys: {list(event.keys())}")
+
+        # Check for direct SMS data (from SNS message body)
+        if "originationNumber" in event and "messageBody" in event:
+            print("DEBUG: Found direct SMS data format")
+            required_fields = ["originationNumber", "messageBody"]
+            is_valid = all(field in event for field in required_fields)
+            print(f"DEBUG: Direct SMS validation result: {is_valid}")
+            return is_valid
+
+        # Check for basic Pinpoint SMS event structure (legacy format)
         records = event.get("Records", [])
-        if not records or len(records) == 0:
-            return False
+        if records and len(records) > 0:
+            print("DEBUG: Found Records format, checking for pinpoint structure")
+            first_record = records[0]
+            pinpoint_data = first_record.get("pinpoint", {})
+            sms_data = pinpoint_data.get("sms", {})
 
-        first_record = records[0]
-        pinpoint_data = first_record.get("pinpoint", {})
-        sms_data = pinpoint_data.get("sms", {})
+            # Check for required SMS fields
+            required_fields = ["messageId", "originationNumber", "messageBody"]
+            is_valid = all(field in sms_data for field in required_fields)
+            print(f"DEBUG: Legacy Pinpoint validation result: {is_valid}")
+            return is_valid
 
-        # Check for required SMS fields
-        required_fields = ["messageId", "originationNumber", "messageBody"]
-        return all(field in sms_data for field in required_fields)
+        print("DEBUG: No valid structure found")
+        return False
 
-    except (KeyError, TypeError, AttributeError):
+    except (KeyError, TypeError, AttributeError) as e:
+        print(f"DEBUG: Exception in validation: {e}")
         return False
 
 
@@ -297,6 +351,64 @@ def _log_event_received(event: Dict[str, Any]) -> None:
 
     except Exception as e:
         print(f"Error logging event received: {e}")
+
+
+def _extract_pinpoint_event(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract Pinpoint event from either direct Pinpoint event or SNS wrapper.
+
+    Handles both:
+    1. Direct Pinpoint events (original format)
+    2. SNS events containing Pinpoint data in message body
+
+    Args:
+        event: Lambda event (either Pinpoint or SNS format)
+
+    Returns:
+        Pinpoint event in the expected format
+    """
+    try:
+        print(f"DEBUG: _extract_pinpoint_event - Event keys: {list(event.keys())}")
+
+        # Check if this is an SNS event
+        if "Records" in event and len(event["Records"]) > 0:
+            first_record = event["Records"][0]
+            print(f"DEBUG: First record keys: {list(first_record.keys())}")
+
+            # SNS event structure
+            if "Sns" in first_record and "Message" in first_record["Sns"]:
+                print("DEBUG: Detected SNS event structure")
+                import json
+
+                sns_message_body = first_record["Sns"]["Message"]
+                print(
+                    f"DEBUG: SNS message body (first 500 chars): {sns_message_body[:500]}"
+                )
+
+                # Parse the SNS message body which contains the Pinpoint event
+                sns_message = json.loads(sns_message_body)
+                print(f"DEBUG: Parsed SNS message keys: {list(sns_message.keys())}")
+                return sns_message
+
+            # Direct Pinpoint event structure
+            elif "pinpoint" in first_record:
+                print("DEBUG: Detected direct Pinpoint event structure")
+                return event
+            else:
+                print(
+                    f"DEBUG: Unknown record structure, keys: {list(first_record.keys())}"
+                )
+
+        # Return as-is if unrecognized format (will fail validation)
+        print("DEBUG: Returning event as-is (unrecognized format)")
+        return event
+
+    except Exception as e:
+        print(f"ERROR: Exception in _extract_pinpoint_event: {e}")
+        import traceback
+
+        print(f"ERROR: Traceback: {traceback.format_exc()}")
+        return event
 
 
 def _log_processing_error(
@@ -380,7 +492,11 @@ def _log_processing_metrics(
         if status == "SUCCESS" and activity:
             metrics.update(
                 {
-                    "activityType": activity.activity_type.value,
+                    "activityType": (
+                        activity.activity_type.value
+                        if hasattr(activity.activity_type, "value")
+                        else activity.activity_type
+                    ),
                     "hasDuration": activity.duration_minutes is not None,
                     "hasLocation": activity.location is not None,
                     "confidence": activity.metadata.get("parsing_confidence", 0.0),

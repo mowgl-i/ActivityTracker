@@ -154,8 +154,25 @@ class Activity(BaseModel):
         Returns:
             Dictionary representation for DynamoDB
         """
+        from decimal import Decimal
+
         item = self.dict()
         item["timestamp"] = self.timestamp.isoformat()
+
+        # Convert float values to Decimal for DynamoDB compatibility
+        def convert_floats_to_decimal(obj):
+            if isinstance(obj, float):
+                return Decimal(str(obj))
+            elif isinstance(obj, dict):
+                return {k: convert_floats_to_decimal(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_floats_to_decimal(v) for v in obj]
+            else:
+                return obj
+
+        # Apply conversion to the entire item
+        item = convert_floats_to_decimal(item)
+
         return item
 
     @classmethod
