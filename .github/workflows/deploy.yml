@@ -202,14 +202,13 @@ jobs:
           }
           echo "✅ SAM template is valid"
 
-      # Cache build artifacts for deployment job
+      # Cache build artifacts for deployment job (with timestamp for fresh builds)
       - name: 💾 Cache build artifacts
         uses: actions/cache@v3
         with:
           path: infrastructure/.aws-sam/build
-          key: sam-build-${{ github.sha }}
-          restore-keys: |
-            sam-build-
+          key: sam-build-${{ github.sha }}-${{ github.run_number }}
+          # No restore-keys to force fresh builds
 
   # Job 3: Deploy to AWS
   deploy:
@@ -263,12 +262,12 @@ jobs:
           ENV="${{ steps.env.outputs.environment }}"
           echo "🎯 Deploying to environment: $ENV"
 
-      # Restore build cache
+      # Restore build cache (with fresh build key)
       - name: 💾 Restore build cache
         uses: actions/cache@v3
         with:
           path: infrastructure/.aws-sam/build
-          key: sam-build-${{ github.sha }}
+          key: sam-build-${{ github.sha }}-${{ github.run_number }}
 
       # Deploy SAM application
       - name: 🚀 Deploy SAM application
