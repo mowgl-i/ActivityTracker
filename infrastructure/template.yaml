@@ -239,12 +239,16 @@ Resources:
         - Key: Project
           Value: ActivityTracker
 
-  # CloudFront origin access identity
-  OriginAccessIdentity:
-    Type: AWS::CloudFront::OriginAccessIdentity
+  # CloudFront origin access control
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
     Properties:
-      OriginAccessIdentityConfig:
-        Comment: !Sub "OAI for ActivityTracker Dashboard ${Environment}"
+      OriginAccessControlConfig:
+        Name: !Sub "ActivityTracker-OAC-${Environment}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+        Description: !Sub "OAC for ActivityTracker Dashboard ${Environment}"
 
   # S3 bucket policy for CloudFront access
   DashboardBucketPolicy:
@@ -255,9 +259,12 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${OriginAccessIdentity}"
+              Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub "${DashboardBucket}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DashboardCloudFront}"
 
   # CloudFront distribution for dashboard
   DashboardCloudFront:
@@ -275,7 +282,8 @@ Resources:
           - Id: S3Origin
             DomainName: !GetAtt DashboardBucket.RegionalDomainName
             S3OriginConfig:
-              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${OriginAccessIdentity}"
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !Ref OriginAccessControl
         Enabled: true
         DefaultRootObject: index.html
         CustomErrorResponses:
