@@ -90,7 +90,7 @@ After running any setup option, you'll need these secrets in your GitHub reposit
 All setup methods implement these security best practices:
 
 - **🔒 OIDC Authentication**: No long-lived AWS access keys
-- **🎯 Least Privilege**: Minimal required permissions only  
+- **🎯 Least Privilege**: Minimal required permissions only
 - **📍 Resource Scoping**: Limited to ActivityTracker-* resources
 - **🏢 Repository Specific**: Only your repo can assume the role
 - **📊 Audit Ready**: All actions logged in AWS CloudTrail

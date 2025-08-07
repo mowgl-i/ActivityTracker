@@ -23,13 +23,13 @@ graph TB
     SMS[📱 SMS Message] --> Pinpoint[AWS Pinpoint]
     Pinpoint --> Lambda1[SMS Processor Lambda]
     Lambda1 --> DDB[(DynamoDB)]
-    
+
     Dashboard[📊 React Dashboard] --> CF[CloudFront]
     CF --> S3[S3 Static Hosting]
     Dashboard --> API[API Gateway]
     API --> Lambda2[API Lambda]
     Lambda2 --> DDB
-    
+
     GitHub[GitHub Repository] --> Actions[GitHub Actions]
     Actions --> SAM[AWS SAM Deploy]
     SAM --> AWS[AWS Resources]
@@ -40,7 +40,7 @@ graph TB
 - **AWS Pinpoint**: Receives inbound SMS messages
 - **Lambda Functions**: Process SMS messages and handle API requests
 - **DynamoDB**: Stores activity data with GSI for efficient queries
-- **API Gateway**: REST API for dashboard and external access  
+- **API Gateway**: REST API for dashboard and external access
 - **S3 + CloudFront**: Static website hosting for dashboard
 - **GitHub Actions**: Automated testing and deployment pipeline
 
@@ -64,7 +64,7 @@ cd ActivityTracker
 # Install dependencies with UV
 uv sync --dev
 
-# Activate virtual environment  
+# Activate virtual environment
 source .venv/bin/activate
 ```
 
@@ -110,7 +110,7 @@ WORK team meeting for 60 minutes in conference room A
 ```
 
 ```
-exercise morning jog for 30 minutes at central park  
+exercise morning jog for 30 minutes at central park
 ```
 
 ```
@@ -223,7 +223,7 @@ pytest
 pytest --cov=src --cov-report=html
 
 # Run specific test categories
-pytest tests/unit/                 # Unit tests only  
+pytest tests/unit/                 # Unit tests only
 pytest tests/integration/          # Integration tests only
 
 # Run tests with verbose output
@@ -236,7 +236,7 @@ pytest -v
 # Format code
 black src/ tests/
 
-# Lint code  
+# Lint code
 ruff check src/ tests/
 
 # Type checking
@@ -262,7 +262,7 @@ from src.activitytracker.models.sms import SMSMessage
 parser = SMSParsingService()
 sms = SMSMessage(
     message_id='test',
-    phone_number='+1234567890', 
+    phone_number='+1234567890',
     message_body='WORK meeting for 60 minutes'
 )
 result = parser.parse_sms_to_activity(sms)
@@ -294,7 +294,7 @@ The project includes automated deployment via GitHub Actions:
 # Deploy to development
 sam deploy --config-env dev
 
-# Deploy to staging  
+# Deploy to staging
 sam deploy --config-env staging
 
 # Deploy to production
@@ -388,7 +388,7 @@ Create activity manually
   "activity_type": "work",
   "description": "Team meeting",
   "duration_minutes": 60,
-  "location": "Conference Room A", 
+  "location": "Conference Room A",
   "phone_number": "+1234567890"
 }
 ```
@@ -408,7 +408,7 @@ Query Parameters:
 The application automatically creates CloudWatch metrics:
 
 - **Lambda Invocations**: Function execution counts
-- **DynamoDB Metrics**: Read/write capacity and throttling  
+- **DynamoDB Metrics**: Read/write capacity and throttling
 - **API Gateway Metrics**: Request counts and latency
 - **Error Rates**: Failed SMS processing and API errors
 
@@ -576,7 +576,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you encounter any issues or have questions:
 
 1. **Check the [Troubleshooting](#🚨-troubleshooting) section**
-2. **Search existing [GitHub Issues](../../issues)**  
+2. **Search existing [GitHub Issues](../../issues)**
 3. **Create a new [GitHub Issue](../../issues/new)** with:
    - Detailed description of the problem
    - Steps to reproduce

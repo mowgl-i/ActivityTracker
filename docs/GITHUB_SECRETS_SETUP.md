@@ -76,7 +76,7 @@ The permissions policy is provided at `docs/policies/github-permissions-policy.j
 
 **Key permissions included:**
 - CloudFormation (stack management)
-- Lambda (function deployment) 
+- Lambda (function deployment)
 - DynamoDB (table management)
 - API Gateway (API management)
 - S3 & CloudFront (static hosting)
@@ -126,7 +126,7 @@ Add these secrets:
 - Value: The role ARN from Step 2 (e.g., `arn:aws:iam::123456789012:role/ActivityTracker-GitHubActions`)
 
 **AWS_REGION**
-- Name: `AWS_REGION` 
+- Name: `AWS_REGION`
 - Value: Your preferred AWS region (e.g., `us-east-1`)
 
 #### Optional Secrets:
@@ -244,7 +244,7 @@ Use this checklist to ensure everything is set up correctly:
 - [ ] IAM role created with proper trust policy
 - [ ] Permission policy created and attached
 - [ ] Role ARN copied to GitHub secrets
-- [ ] AWS region added to GitHub secrets  
+- [ ] AWS region added to GitHub secrets
 - [ ] Optional secrets added (Codecov, Slack)
 - [ ] Test deployment completed successfully
 - [ ] AWS resources created in correct region
