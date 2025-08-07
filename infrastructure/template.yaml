@@ -425,3 +425,4 @@ Outputs:
     Value: !Ref InboundSMSTopic
     Export:
       Name: !Sub "${AWS::StackName}-InboundSMSTopic"
+# Fixed DynamoDB BillingMode issue
